@@ -1,0 +1,15 @@
+[package]
+name = "asciify-core"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif"] }
+
+[profile.release]
+opt-level = "s"
+lto = true
