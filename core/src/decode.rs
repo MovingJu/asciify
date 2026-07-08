@@ -1,4 +1,4 @@
-use image::{DynamicImage, ImageError, ImageReader};
+use image::{DynamicImage, ImageError};
 use thiserror::Error;
 
 /// Error type for decode.
@@ -16,11 +16,6 @@ pub fn load_from_bytes(bytes: &[u8]) -> Result<DynamicImage, ImageError> {
     let image = image::load_from_memory(bytes)?;
     Ok(image)
 }
-/// Function for loading image from files system.
-pub fn load_image(path: std::path::PathBuf) -> Result<DynamicImage, LoadImageError> {
-    let image = ImageReader::open(path)?.decode()?;
-    Ok(image)
-}
 
 #[cfg(test)]
 mod tests {
@@ -28,8 +23,15 @@ mod tests {
     use super::*;
     use std::fs;
     use std::path::PathBuf;
+    use image::ImageReader;
 
     const TEST_DIR: &str = "./tests";
+
+    /// Function for loading image from files system.
+    fn load_image(path: std::path::PathBuf) -> Result<DynamicImage, LoadImageError> {
+        let image = ImageReader::open(path)?.decode()?;
+        Ok(image)
+    }
 
     #[test]
     fn load_image_test() {
