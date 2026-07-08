@@ -12,7 +12,7 @@ pub enum LoadImageError {
 }
 /// Function for loading image from bytes. 
 /// It'll be used in service.
-pub fn load_from_bytes(bytes: &[u8]) -> Result<DynamicImage, ImageError> {
+pub fn load_from_bytes(bytes: &[u8]) -> Result<DynamicImage, LoadImageError> {
     let image = image::load_from_memory(bytes)?;
     Ok(image)
 }
