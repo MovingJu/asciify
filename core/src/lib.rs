@@ -1,6 +1,6 @@
 mod decode;
 use wasm_bindgen::prelude::*;
-
+use std::path::PathBuf;
 
 /// 밝은 곳 → 어두운 곳 순서의 ASCII 램프.
 /// 밝기(0~255)를 이 문자열의 인덱스로 매핑해서 문자를 고른다.
@@ -20,6 +20,7 @@ pub const ASCII_RAMP: &str = " .:-=+*#%@";
 ///   5. 한 줄씩 문자열로 합쳐서(개행 포함) 리턴
 #[wasm_bindgen]
 pub fn image_to_ascii(bytes: &[u8], cols: u32) -> String {
+    
     todo!("이슈 #2, #3 — 이미지 디코딩 + 밝기→ASCII 매핑 구현")
 }
 
