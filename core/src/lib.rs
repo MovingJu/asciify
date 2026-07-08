@@ -1,8 +1,9 @@
+mod decode;
 use wasm_bindgen::prelude::*;
 
 /// 밝은 곳 → 어두운 곳 순서의 ASCII 램프.
 /// 밝기(0~255)를 이 문자열의 인덱스로 매핑해서 문자를 고른다.
-/// 참고: https://paulbourke.net/dataformats/asciiart/
+/// 참고: <https://paulbourke.net/dataformats/asciiart/>
 pub const ASCII_RAMP: &str = " .:-=+*#%@";
 
 /// 정적 이미지(PNG/JPEG 등) 바이트를 받아 ASCII 아트 문자열로 변환한다.
@@ -17,8 +18,13 @@ pub const ASCII_RAMP: &str = " .:-=+*#%@";
 ///   4. 각 픽셀의 밝기(0~255)를 `ASCII_RAMP` 인덱스로 매핑
 ///   5. 한 줄씩 문자열로 합쳐서(개행 포함) 리턴
 #[wasm_bindgen]
-pub fn image_to_ascii(bytes: &[u8], cols: u32) -> String {
-    todo!("이슈 #2, #3 — 이미지 디코딩 + 밝기→ASCII 매핑 구현")
+pub fn image_to_ascii(bytes: &[u8], _cols: u32) -> String {
+    if let Ok(image) = decode::load_from_bytes(bytes) { 
+        format!("{} * {}", image.width(), image.height())
+    } else {
+        eprintln!("Failed to convert image from bytes.");
+        String::new()
+    }
 }
 
 /// 애니메이션 GIF 바이트를 받아, 프레임별 ASCII 아트 + 딜레이(ms)를 JSON으로 반환한다.
