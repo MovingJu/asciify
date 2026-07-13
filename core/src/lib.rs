@@ -19,20 +19,20 @@ pub const ASCII_RAMP: &str = " .:-=+*#%@";
 ///   4. 각 픽셀의 밝기(0~255)를 `ASCII_RAMP` 인덱스로 매핑
 ///   5. 한 줄씩 문자열로 합쳐서(개행 포함) 리턴
 #[wasm_bindgen]
-pub fn image_to_ascii(bytes: &[u8], _cols: u32) -> String {
+pub fn image_to_ascii(bytes: &[u8], cols: u32) -> String {
     let Ok(img) = decode::load_from_bytes(bytes) else {
         eprintln!("Failed to convert image from bytes.");
         return String::new();
     };
-    let img = resize_image(img, _cols);
+    let img = resize_image(img, cols);
     format!("{} * {}", img.width(), img.height())
 }
-fn resize_image(img: DynamicImage, _cols: u32) -> DynamicImage {
+fn resize_image(img: DynamicImage, cols: u32) -> DynamicImage {
     let rows = {
         let correlation_factor = 0.5;
-        _cols as f64 * (img.height() as f64 / img.width() as f64) * correlation_factor
+        cols as f64 * (img.height() as f64 / img.width() as f64) * correlation_factor
     };
-    img.resize_exact(_cols, rows.round() as u32, imageops::FilterType::Triangle)
+    img.resize_exact(cols, rows.round() as u32, imageops::FilterType::Triangle)
 }
 
 /// 애니메이션 GIF 바이트를 받아, 프레임별 ASCII 아트 + 딜레이(ms)를 JSON으로 반환한다.
@@ -59,16 +59,6 @@ mod tests {
 
     const TEST_DIR: &str = "./tests";
     const FILE_NAME: &str = "dodo.jpeg";
-
-    #[test]
-    fn ascii_show_test() {
-        let img = load_image();
-        let mut buf = Vec::new();
-        img.write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
-            .expect("Failed to encode");
-
-        // let mut result = format!("{FILE_NAME}\n{}");
-    }
     
     #[test]
     fn resize_img_test() {
