@@ -32,7 +32,7 @@ fn resize_image(img: DynamicImage, _cols: u32) -> DynamicImage {
         let correlation_factor = 0.5;
         _cols as f64 * (img.height() as f64 / img.width() as f64) * correlation_factor
     };
-    img.resize(_cols, rows.round() as u32, imageops::FilterType::Triangle)
+    img.resize_exact(_cols, rows.round() as u32, imageops::FilterType::Triangle)
 }
 
 /// 애니메이션 GIF 바이트를 받아, 프레임별 ASCII 아트 + 딜레이(ms)를 JSON으로 반환한다.
@@ -73,7 +73,7 @@ mod tests {
     #[test]
     fn resize_img_test() {
         let img = resize_image(load_image(), 60);
-        assert_eq!(img.width(), 30);
+        assert_eq!(img.width(), 60);
         assert_eq!(img.height(), 35);
     }
 
