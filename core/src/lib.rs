@@ -1,5 +1,5 @@
 mod decode;
-use image::{DynamicImage, imageops};
+use image::{DynamicImage, GrayImage, imageops};
 use wasm_bindgen::prelude::*;
 
 /// 밝은 곳 → 어두운 곳 순서의 ASCII 램프.
@@ -24,8 +24,21 @@ pub fn image_to_ascii(bytes: &[u8], cols: u32) -> String {
         eprintln!("Failed to convert image from bytes.");
         return String::new();
     };
-    let img = resize_image(img, cols);
-    format!("{} * {}", img.width(), img.height())
+    let img = resize_image(img, cols).into_luma8();
+    image_to_string(img)
+}
+fn image_to_string(img: GrayImage) -> String {
+    const BRIGHTNESS_STAGE: usize = ASCII_RAMP.len() - 1;
+    let mut result_ascii = String::new();
+    for row in img.rows() {
+        for pixel in row {
+            let brightness_idx = (pixel.0[0] as usize * BRIGHTNESS_STAGE) / 255;
+            result_ascii.push(ASCII_RAMP.as_bytes()[brightness_idx] as char);
+        }
+        result_ascii.push('\n');
+    }
+    result_ascii.pop();
+    result_ascii
 }
 fn resize_image(img: DynamicImage, cols: u32) -> DynamicImage {
     let rows = {
@@ -54,7 +67,8 @@ pub fn gif_to_ascii_frames(bytes: &[u8], cols: u32) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::{path::PathBuf};
+    use image::{GrayImage};
     use super::*;
 
     const TEST_DIR: &str = "./tests";
@@ -65,6 +79,26 @@ mod tests {
         let img = resize_image(load_image(), 60);
         assert_eq!(img.width(), 60);
         assert_eq!(img.height(), 35);
+    }
+
+    #[test]
+    fn pixel_255_test() {
+        let white_bytes: Vec<u8> = vec![255];
+        let img = GrayImage::from_raw(1, 1, white_bytes).unwrap();
+        let result = image_to_string(img.into());
+        assert_eq!(
+            result, String::from(ASCII_RAMP.as_bytes()[ASCII_RAMP.len() - 1] as char)
+        );
+    }
+
+    #[test]
+    fn pixel_0_test() {
+        let black_bytes: Vec<u8> = vec![0];
+        let img = GrayImage::from_raw(1, 1, black_bytes).unwrap();
+        let result = image_to_string(img.into());
+        assert_eq!(
+            result, String::from(ASCII_RAMP.as_bytes()[0] as char)
+        );
     }
 
     fn load_image() -> DynamicImage {
