@@ -1,5 +1,5 @@
 mod decode;
-use image::{DynamicImage, imageops};
+use image::{DynamicImage, GrayImage, imageops};
 use wasm_bindgen::prelude::*;
 
 /// 밝은 곳 → 어두운 곳 순서의 ASCII 램프.
@@ -25,6 +25,9 @@ pub fn image_to_ascii(bytes: &[u8], cols: u32) -> String {
         return String::new();
     };
     let img = resize_image(img, cols).into_luma8();
+    image_to_string(img)
+}
+fn image_to_string(img: GrayImage) -> String {
     const BRIGHTNESS_STAGE: usize = ASCII_RAMP.len() - 1;
     let mut result_ascii = String::new();
     for row in img.rows() {
@@ -64,7 +67,8 @@ pub fn gif_to_ascii_frames(bytes: &[u8], cols: u32) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::{path::PathBuf};
+    use image::{GrayImage};
     use super::*;
 
     const TEST_DIR: &str = "./tests";
@@ -77,6 +81,25 @@ mod tests {
         assert_eq!(img.height(), 35);
     }
 
+    #[test]
+    fn pixel_255_test() {
+        let white_bytes: Vec<u8> = vec![255];
+        let img = GrayImage::from_raw(1, 1, white_bytes).unwrap();
+        let result = image_to_string(img.into());
+        assert_eq!(
+            result, String::from(ASCII_RAMP.as_bytes()[ASCII_RAMP.len() - 1] as char)
+        );
+    }
+
+    #[test]
+    fn pixel_0_test() {
+        let black_bytes: Vec<u8> = vec![0];
+        let img = GrayImage::from_raw(1, 1, black_bytes).unwrap();
+        let result = image_to_string(img.into());
+        assert_eq!(
+            result, String::from(ASCII_RAMP.as_bytes()[0] as char)
+        );
+    }
 
     fn load_image() -> DynamicImage {
         decode::load_image(PathBuf::from(format!("{TEST_DIR}/{FILE_NAME}"))).expect("Failed to load img")
