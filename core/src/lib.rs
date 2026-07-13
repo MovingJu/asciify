@@ -24,8 +24,18 @@ pub fn image_to_ascii(bytes: &[u8], cols: u32) -> String {
         eprintln!("Failed to convert image from bytes.");
         return String::new();
     };
-    let img = resize_image(img, cols);
-    format!("{} * {}", img.width(), img.height())
+    let img = resize_image(img, cols).into_luma8();
+    const BRIGHTNESS_STAGE: usize = ASCII_RAMP.len() - 1;
+    let mut result_ascii = String::new();
+    for row in img.rows() {
+        for pixel in row {
+            let brightness_idx = (pixel.0[0] as usize * BRIGHTNESS_STAGE) / 255;
+            result_ascii.push(ASCII_RAMP.as_bytes()[brightness_idx] as char);
+        }
+        result_ascii.push('\n');
+    }
+    result_ascii.pop();
+    result_ascii
 }
 fn resize_image(img: DynamicImage, cols: u32) -> DynamicImage {
     let rows = {
@@ -66,6 +76,7 @@ mod tests {
         assert_eq!(img.width(), 60);
         assert_eq!(img.height(), 35);
     }
+
 
     fn load_image() -> DynamicImage {
         decode::load_image(PathBuf::from(format!("{TEST_DIR}/{FILE_NAME}"))).expect("Failed to load img")
