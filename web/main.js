@@ -21,6 +21,11 @@ let currentAnimation = null; // 재생 중인 GIF 애니메이션의 setTimeout 
 let lastAscii = null; // 지금 화면에 보이는 ASCII 결과 (다운로드 대상, GIF는 현재 프레임 기준)
 let lastFrames = null; // 지금 결과가 GIF일 때 전체 프레임 배열 [{ascii, delayMs}, ...], 아니면 null
 
+// Rust 쪽이 아직 크기 제한을 검사하지 않아서(이슈 #19), 너무 큰 이미지를 wasm에 넘기면
+// 리사이즈/밝기 계산 중에 탭이 멈출 수 있다. 최종 해결은 이슈 #19에서 다루고,
+// 여기선 임시로 프론트에서 먼저 걸러낸다.
+const MAX_PIXELS = 20_000_000; // ~5000x4000, Rust 쪽 프로토타입(PR #18)에서 쓴 것과 같은 한도
+
 colsSlider.addEventListener("input", () => {
   colsValue.textContent = colsSlider.value;
 });
@@ -57,6 +62,17 @@ async function handleFile(file) {
   downloadGifBtn.disabled = true;
 
   try {
+    const bitmap = await createImageBitmap(file);
+    const { width, height } = bitmap;
+    bitmap.close(); // close() 이후엔 width/height가 0이 되므로 미리 꺼내둠
+
+    if (width * height > MAX_PIXELS) {
+      status.textContent =
+        `이미지가 너무 큽니다 (${width}x${height}). ` +
+        `최대 ${MAX_PIXELS.toLocaleString()}픽셀까지 지원하니 더 작은 이미지로 시도해주세요.`;
+      return;
+    }
+
     await ensureWasm();
     const bytes = new Uint8Array(await file.arrayBuffer());
     const cols = Number(colsSlider.value);
