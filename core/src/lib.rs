@@ -7,6 +7,7 @@ use wasm_bindgen::prelude::*;
 /// 밝기(0~255)를 이 문자열의 인덱스로 매핑해서 문자를 고른다.
 /// 참고: <https://paulbourke.net/dataformats/asciiart/>
 pub const ASCII_RAMP: &str = " .:-=+*#%@";
+// pub const ASCII_RAMP: &str = r#" .'`^",:;Il!i><~+_-?][}{1)(|\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$"#;
 
 /// 정적 이미지(PNG/JPEG 등) 바이트를 받아 ASCII 아트 문자열로 변환한다.
 ///
