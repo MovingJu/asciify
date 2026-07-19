@@ -8,9 +8,12 @@ pub(crate) fn gif_decode(
     bytes: &[u8],
 ) -> Result<impl Iterator<Item = Frame> + use<'_>, LoadImageError> {
     let gif = image::codecs::gif::GifDecoder::new(Cursor::new(bytes))?;
-    Ok(gif.into_frames().filter_map(|item| {
-        eprintln!("Failed to convert frame in gif");
-        item.ok()
+    Ok(gif.into_frames().filter_map(|item| match item {
+        Ok(frame) => Some(frame),
+        Err(err) => {
+            eprintln!("Failed to convert frame in gif: {err}");
+            None
+        }
     }))
 }
 
