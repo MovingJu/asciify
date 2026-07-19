@@ -42,6 +42,20 @@
   }
 
   .status { font-size:.85rem; opacity:.6; margin:10px 0; }
+
+  .download-bar { display:flex; gap:10px; margin:10px 0 20px; }
+  .download-bar button {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: .85rem;
+    cursor: pointer;
+    transition: border-color .15s, color .15s;
+  }
+  .download-bar button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .download-bar button:disabled { opacity:.35; cursor:not-allowed; }
 </style>
 </head>
 <body>
@@ -61,6 +75,12 @@
   </div>
 
   <div class="status" id="status"></div>
+
+  <div class="download-bar">
+    <button id="download-text-btn" disabled>텍스트로 다운로드</button>
+    <button id="download-image-btn" disabled>이미지로 다운로드</button>
+  </div>
+
   <pre id="output"></pre>
 </main>
 
