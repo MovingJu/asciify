@@ -1,6 +1,6 @@
-mod decode;
 mod core;
-
+mod decode;
+use image::DynamicImage;
 use wasm_bindgen::prelude::*;
 
 /// 밝은 곳 → 어두운 곳 순서의 ASCII 램프.
@@ -29,7 +29,6 @@ pub fn image_to_ascii(bytes: &[u8], cols: u32) -> String {
     core::image_to_string(img)
 }
 
-
 /// 애니메이션 GIF 바이트를 받아, 프레임별 ASCII 아트 + 딜레이(ms)를 JSON으로 반환한다.
 ///
 /// 반환 형식 예시:
@@ -42,24 +41,68 @@ pub fn image_to_ascii(bytes: &[u8], cols: u32) -> String {
 ///   4. 결과를 JSON 문자열로 직렬화해서 리턴 (서버 강의에서 쓴 것처럼 수동 포맷도 되고,
 ///      serde_json을 Cargo.toml에 추가해도 됨)
 #[wasm_bindgen]
-#[allow(unused_variables)] // temporary turn off warnings
 pub fn gif_to_ascii_frames(bytes: &[u8], cols: u32) -> String {
     let Ok(frames) = decode::gif_decode(bytes) else {
         eprintln!("Failed to load image from bytes.");
         return String::new();
     };
-    todo!("이슈 #5, #6 — GIF 프레임 분리 + 프레임별 ASCII 변환 구현")
+    let result_gif: Vec<core::AsciiFrame> = frames
+        .map(|item| {
+            let numer_denom = item.delay().numer_denom_ms();
+            let numerator = numer_denom.0 as f64;
+            let denominator = numer_denom.1 as f64;
+            let img = DynamicImage::ImageRgba8(item.buffer().to_owned());
+            let img = core::resize_image(img, cols).into_luma8();
+            (
+                core::image_to_string(img),
+                (numerator / denominator).round() as u32,
+            )
+        })
+        .map(|(ascii, delay)| core::AsciiFrame::new(ascii, delay as usize))
+        .collect();
+    match serde_json::to_string(&result_gif) {
+        Ok(res) => res,
+        Err(e) => {
+            eprintln!("Can't serialize result: {e}");
+            String::new()
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use image::{GrayImage, DynamicImage};
+    use image::{DynamicImage, GrayImage};
     use std::path::PathBuf;
 
     const TEST_DIR: &str = "./tests";
     const FILE_NAME: &str = "dodo.jpeg";
 
+    #[test]
+    fn gif_pixel_test() {
+        use image::codecs::gif::{GifEncoder, Repeat};
+        use image::{Delay, Frame, RgbaImage};
+
+        let black_bytes: Vec<u8> = vec![0, 0, 0, 255]; 
+        let img = RgbaImage::from_raw(1, 1, black_bytes).unwrap();
+        let delay = Delay::from_numer_denom_ms(100, 1);
+        let frame = Frame::from_parts(img, 0, 0, delay);
+
+        let mut gif_bytes: Vec<u8> = Vec::new();
+        {
+            let mut encoder = GifEncoder::new(&mut gif_bytes);
+            encoder.set_repeat(Repeat::Infinite).unwrap();
+            encoder.encode_frames(vec![frame].into_iter()).unwrap();
+        }
+
+        let json = gif_to_ascii_frames(&gif_bytes, 1);
+
+        let expected = format!(
+            r#"[{{"ascii":"{}","delayMs":100}}]"#,
+            ASCII_RAMP.as_bytes()[0] as char
+        );
+        assert_eq!(json, expected);
+    }
     fn load_gif(bytes: &[u8]) -> usize {
         let Ok(frames) = decode::gif_decode(bytes) else {
             panic!("Failed to load image from bytes.");
