@@ -62,6 +62,10 @@ fn resize_image(img: DynamicImage, cols: u32) -> DynamicImage {
 #[wasm_bindgen]
 #[allow(unused_variables)] // temporary turn off warnings
 pub fn gif_to_ascii_frames(bytes: &[u8], cols: u32) -> String {
+    let Ok(frames) = decode::gif_decode(bytes) else {
+        eprintln!("Failed to load image from bytes.");
+        return String::new();
+    };
     todo!("이슈 #5, #6 — GIF 프레임 분리 + 프레임별 ASCII 변환 구현")
 }
 
@@ -73,6 +77,19 @@ mod tests {
 
     const TEST_DIR: &str = "./tests";
     const FILE_NAME: &str = "dodo.jpeg";
+
+    fn load_gif(bytes: &[u8]) -> usize {
+        let Ok(frames) = decode::gif_decode(bytes) else {
+            panic!("Failed to load image from bytes.");
+        };
+        frames.count()
+    }
+    #[test]
+    fn load_gif_test() {
+        let buf = std::fs::read(format!("{TEST_DIR}/dodo.gif"))
+            .expect("read error");
+        assert_eq!(load_gif(&buf), 14);
+    }
     
     #[test]
     fn resize_img_test() {
