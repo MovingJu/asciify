@@ -1,4 +1,4 @@
-mod core;
+mod engine;
 mod decode;
 use image::DynamicImage;
 use wasm_bindgen::prelude::*;
@@ -25,8 +25,8 @@ pub fn image_to_ascii(bytes: &[u8], cols: u32) -> String {
         eprintln!("Failed to convert image from bytes.");
         return String::new();
     };
-    let img = core::resize_image(img, cols).into_luma8();
-    core::image_to_string(img)
+    let img = engine::resize_image(img, cols).into_luma8();
+    engine::image_to_string(img)
 }
 
 /// 애니메이션 GIF 바이트를 받아, 프레임별 ASCII 아트 + 딜레이(ms)를 JSON으로 반환한다.
@@ -46,19 +46,19 @@ pub fn gif_to_ascii_frames(bytes: &[u8], cols: u32) -> String {
         eprintln!("Failed to load image from bytes.");
         return String::new();
     };
-    let result_gif: Vec<core::AsciiFrame> = frames
+    let result_gif: Vec<engine::AsciiFrame> = frames
         .map(|item| {
             let numer_denom = item.delay().numer_denom_ms();
             let numerator = numer_denom.0 as f64;
             let denominator = numer_denom.1 as f64;
             let img = DynamicImage::ImageRgba8(item.buffer().to_owned());
-            let img = core::resize_image(img, cols).into_luma8();
+            let img = engine::resize_image(img, cols).into_luma8();
             (
-                core::image_to_string(img),
+                engine::image_to_string(img),
                 (numerator / denominator).round() as u32,
             )
         })
-        .map(|(ascii, delay)| core::AsciiFrame::new(ascii, delay as usize))
+        .map(|(ascii, delay)| engine::AsciiFrame::new(ascii, delay as usize))
         .collect();
     match serde_json::to_string(&result_gif) {
         Ok(res) => res,
@@ -117,7 +117,7 @@ mod tests {
 
     #[test]
     fn resize_img_test() {
-        let img = core::resize_image(load_image(), 60);
+        let img = engine::resize_image(load_image(), 60);
         assert_eq!(img.width(), 60);
         assert_eq!(img.height(), 35);
     }
@@ -126,7 +126,7 @@ mod tests {
     fn pixel_255_test() {
         let white_bytes: Vec<u8> = vec![255];
         let img = GrayImage::from_raw(1, 1, white_bytes).unwrap();
-        let result = core::image_to_string(img.into());
+        let result = engine::image_to_string(img.into());
         assert_eq!(
             result,
             String::from(ASCII_RAMP.as_bytes()[ASCII_RAMP.len() - 1] as char)
@@ -137,7 +137,7 @@ mod tests {
     fn pixel_0_test() {
         let black_bytes: Vec<u8> = vec![0];
         let img = GrayImage::from_raw(1, 1, black_bytes).unwrap();
-        let result = core::image_to_string(img.into());
+        let result = engine::image_to_string(img.into());
         assert_eq!(result, String::from(ASCII_RAMP.as_bytes()[0] as char));
     }
 
