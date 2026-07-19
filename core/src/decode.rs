@@ -1,25 +1,41 @@
-use image::{DynamicImage, ImageError};
-use thiserror::Error;
+#[cfg(test)]
 use image::ImageReader;
+use image::{AnimationDecoder, DynamicImage, Frame, ImageError};
+use std::io::Cursor;
+use thiserror::Error;
+
+pub(crate) fn gif_decode(
+    bytes: &[u8],
+) -> Result<impl Iterator<Item = Frame> + use<'_>, LoadImageError> {
+    let gif = image::codecs::gif::GifDecoder::new(Cursor::new(bytes))?;
+    Ok(gif.into_frames().filter_map(|item| match item {
+        Ok(frame) => Some(frame),
+        Err(err) => {
+            eprintln!("Failed to convert frame in gif: {err}");
+            None
+        }
+    }))
+}
 
 /// Error type for decode.
 #[derive(Error, Debug)]
-pub enum LoadImageError {
+pub(crate) enum LoadImageError {
     #[error("Failed to load image")]
     Io(#[from] std::io::Error),
 
     #[error("Failed to decode image")]
     Decode(#[from] ImageError),
 }
-/// Function for loading image from bytes. 
+/// Function for loading image from bytes.
 /// It'll be used in service.
-pub fn load_from_bytes(bytes: &[u8]) -> Result<DynamicImage, LoadImageError> {
+pub(crate) fn load_from_bytes(bytes: &[u8]) -> Result<DynamicImage, LoadImageError> {
     let image = image::load_from_memory(bytes)?;
     Ok(image)
 }
 
 /// Function for loading image from files system.
-pub fn load_image(path: std::path::PathBuf) -> Result<DynamicImage, LoadImageError> {
+#[cfg(test)]
+pub(crate) fn load_image(path: std::path::PathBuf) -> Result<DynamicImage, LoadImageError> {
     let image = ImageReader::open(path)?.decode()?;
     Ok(image)
 }
@@ -30,7 +46,7 @@ mod tests {
     use super::*;
     use std::fs;
     use std::path::PathBuf;
-    
+
     const TEST_DIR: &str = "./tests";
 
     #[test]

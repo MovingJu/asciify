@@ -1,5 +1,5 @@
 mod decode;
-use image::{DynamicImage, GrayImage, imageops};
+use image::{imageops, DynamicImage, GrayImage};
 use wasm_bindgen::prelude::*;
 
 /// 밝은 곳 → 어두운 곳 순서의 ASCII 램프.
@@ -62,18 +62,34 @@ fn resize_image(img: DynamicImage, cols: u32) -> DynamicImage {
 #[wasm_bindgen]
 #[allow(unused_variables)] // temporary turn off warnings
 pub fn gif_to_ascii_frames(bytes: &[u8], cols: u32) -> String {
+    let Ok(frames) = decode::gif_decode(bytes) else {
+        eprintln!("Failed to load image from bytes.");
+        return String::new();
+    };
     todo!("이슈 #5, #6 — GIF 프레임 분리 + 프레임별 ASCII 변환 구현")
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{path::PathBuf};
-    use image::{GrayImage};
     use super::*;
+    use image::GrayImage;
+    use std::path::PathBuf;
 
     const TEST_DIR: &str = "./tests";
     const FILE_NAME: &str = "dodo.jpeg";
-    
+
+    fn load_gif(bytes: &[u8]) -> usize {
+        let Ok(frames) = decode::gif_decode(bytes) else {
+            panic!("Failed to load image from bytes.");
+        };
+        frames.count()
+    }
+    #[test]
+    fn load_gif_test() {
+        let buf = std::fs::read(format!("{TEST_DIR}/dodo.gif")).expect("read error");
+        assert_eq!(load_gif(&buf), 14);
+    }
+
     #[test]
     fn resize_img_test() {
         let img = resize_image(load_image(), 60);
@@ -87,7 +103,8 @@ mod tests {
         let img = GrayImage::from_raw(1, 1, white_bytes).unwrap();
         let result = image_to_string(img.into());
         assert_eq!(
-            result, String::from(ASCII_RAMP.as_bytes()[ASCII_RAMP.len() - 1] as char)
+            result,
+            String::from(ASCII_RAMP.as_bytes()[ASCII_RAMP.len() - 1] as char)
         );
     }
 
@@ -96,12 +113,11 @@ mod tests {
         let black_bytes: Vec<u8> = vec![0];
         let img = GrayImage::from_raw(1, 1, black_bytes).unwrap();
         let result = image_to_string(img.into());
-        assert_eq!(
-            result, String::from(ASCII_RAMP.as_bytes()[0] as char)
-        );
+        assert_eq!(result, String::from(ASCII_RAMP.as_bytes()[0] as char));
     }
 
     fn load_image() -> DynamicImage {
-        decode::load_image(PathBuf::from(format!("{TEST_DIR}/{FILE_NAME}"))).expect("Failed to load img")
+        decode::load_image(PathBuf::from(format!("{TEST_DIR}/{FILE_NAME}")))
+            .expect("Failed to load img")
     }
 }
