@@ -1,4 +1,5 @@
 import init, { image_to_ascii, gif_to_ascii_frames } from "./pkg/asciify_core.js";
+import { encodeGif } from "./gif-encoder.js";
 
 let wasmReady = null;
 function ensureWasm() {
@@ -14,9 +15,11 @@ const output = document.getElementById("output");
 const status = document.getElementById("status");
 const downloadTextBtn = document.getElementById("download-text-btn");
 const downloadImageBtn = document.getElementById("download-image-btn");
+const downloadGifBtn = document.getElementById("download-gif-btn");
 
 let currentAnimation = null; // 재생 중인 GIF 애니메이션의 setTimeout 핸들
 let lastAscii = null; // 지금 화면에 보이는 ASCII 결과 (다운로드 대상, GIF는 현재 프레임 기준)
+let lastFrames = null; // 지금 결과가 GIF일 때 전체 프레임 배열 [{ascii, delayMs}, ...], 아니면 null
 
 colsSlider.addEventListener("input", () => {
   colsValue.textContent = colsSlider.value;
@@ -50,6 +53,8 @@ async function handleFile(file) {
   status.textContent = "변환 중...";
   output.textContent = "";
   setDownloadResult(null);
+  lastFrames = null;
+  downloadGifBtn.disabled = true;
 
   try {
     await ensureWasm();
@@ -59,9 +64,13 @@ async function handleFile(file) {
     if (file.type === "image/gif") {
       const framesJson = gif_to_ascii_frames(bytes, cols);
       const frames = JSON.parse(framesJson); // [{ ascii, delayMs }, ...]
+      lastFrames = frames;
+      downloadGifBtn.disabled = false;
       playAnimation(frames);
       status.textContent = `${frames.length}프레임 GIF 재생 중`;
     } else {
+      lastFrames = null;
+      downloadGifBtn.disabled = true;
       const ascii = image_to_ascii(bytes, cols);
       output.textContent = ascii;
       setDownloadResult(ascii);
@@ -103,6 +112,21 @@ downloadImageBtn.addEventListener("click", () => {
   canvas.toBlob((blob) => {
     triggerDownload(URL.createObjectURL(blob), "ascii-art.png");
   }, "image/png");
+});
+
+downloadGifBtn.addEventListener("click", () => {
+  if (!lastFrames) return;
+  // 모든 프레임을 같은 캔버스 크기로 그려야 하므로, 첫 프레임 크기를 기준으로 맞춘다
+  // (같은 GIF에서 나온 프레임들은 cols가 고정이라 사실상 항상 크기가 같음).
+  const rendered = lastFrames.map(({ ascii, delayMs }) => {
+    const canvas = renderAsciiToCanvas(ascii);
+    const ctx = canvas.getContext("2d");
+    return { imageData: ctx.getImageData(0, 0, canvas.width, canvas.height), delayMs };
+  });
+
+  const gifBytes = encodeGif(rendered);
+  const blob = new Blob([gifBytes], { type: "image/gif" });
+  triggerDownload(URL.createObjectURL(blob), "ascii-art.gif");
 });
 
 // ASCII 문자열을 모노스페이스 폰트로 캔버스에 그려서 리턴한다 (PNG 내보내기용).
