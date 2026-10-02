@@ -1,5 +1,5 @@
-mod engine;
 mod decode;
+mod engine;
 use image::DynamicImage;
 use wasm_bindgen::prelude::*;
 
@@ -21,13 +21,11 @@ pub const ASCII_RAMP: &str = " .:-=+*#%@";
 ///   4. 각 픽셀의 밝기(0~255)를 `ASCII_RAMP` 인덱스로 매핑
 ///   5. 한 줄씩 문자열로 합쳐서(개행 포함) 리턴
 #[wasm_bindgen]
-pub fn image_to_ascii(bytes: &[u8], cols: u32) -> String {
-    let Ok(img) = decode::load_from_bytes(bytes) else {
-        eprintln!("Failed to convert image from bytes.");
-        return String::new();
-    };
+pub fn image_to_ascii(bytes: &[u8], cols: u32) -> Result<String, String> {
+    let img = decode::load_from_bytes(bytes)
+        .map_err(|error| format!("이미지 파일을 읽을 수 없습니다: {error}"))?;
     let img = engine::resize_image(img, cols).into_luma8();
-    engine::image_to_string(img)
+    Ok(engine::image_to_string(img))
 }
 
 /// 애니메이션 GIF 바이트를 받아, 프레임별 ASCII 아트 + 딜레이(ms)를 JSON으로 반환한다.
@@ -42,38 +40,33 @@ pub fn image_to_ascii(bytes: &[u8], cols: u32) -> String {
 ///   4. 결과를 JSON 문자열로 직렬화해서 리턴 (서버 강의에서 쓴 것처럼 수동 포맷도 되고,
 ///      serde_json을 Cargo.toml에 추가해도 됨)
 #[wasm_bindgen]
-pub fn gif_to_ascii_frames(bytes: &[u8], cols: u32) -> String {
-    let Ok(frames) = decode::gif_decode(bytes) else {
-        eprintln!("Failed to load image from bytes.");
-        return String::new();
-    };
+pub fn gif_to_ascii_frames(bytes: &[u8], cols: u32) -> Result<String, String> {
+    let frames = decode::gif_decode(bytes)
+        .map_err(|error| format!("GIF 파일을 읽을 수 없습니다: {error}"))?;
     let result_gif: Vec<engine::AsciiFrame> = frames
         .map(|item| {
+            let item = item.map_err(|error| format!("GIF 프레임을 읽을 수 없습니다: {error}"))?;
             let numer_denom = item.delay().numer_denom_ms();
             let numerator = numer_denom.0 as f64;
             let denominator = numer_denom.1 as f64;
             let img = DynamicImage::ImageRgba8(item.buffer().to_owned());
             let img = engine::resize_image(img, cols).into_luma8();
-            (
-                engine::image_to_string(img),
-                (numerator / denominator).round() as u32,
-            )
+            let ascii = engine::image_to_string(img);
+            let delay = (numerator / denominator).round() as usize;
+            Ok(engine::AsciiFrame::new(ascii, delay))
         })
-        .map(|(ascii, delay)| engine::AsciiFrame::new(ascii, delay as usize))
-        .collect();
-    match serde_json::to_string(&result_gif) {
-        Ok(res) => res,
-        Err(e) => {
-            eprintln!("Can't serialize result: {e}");
-            String::new()
-        }
+        .collect::<Result<_, String>>()?;
+    if result_gif.is_empty() {
+        return Err("GIF에서 프레임을 찾을 수 없습니다.".into());
     }
+    serde_json::to_string(&result_gif)
+        .map_err(|error| format!("GIF 결과를 만들 수 없습니다: {error}"))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use image::{DynamicImage, GrayImage};
+    use image::{Delay, DynamicImage, Frame, GrayImage, Rgb, RgbImage, Rgba, RgbaImage};
     use std::path::PathBuf;
 
     const TEST_DIR: &str = "./tests";
@@ -82,9 +75,8 @@ mod tests {
     #[test]
     fn gif_pixel_test() {
         use image::codecs::gif::{GifEncoder, Repeat};
-        use image::{Delay, Frame, RgbaImage};
 
-        let black_bytes: Vec<u8> = vec![0, 0, 0, 255]; 
+        let black_bytes: Vec<u8> = vec![0, 0, 0, 255];
         let img = RgbaImage::from_raw(1, 1, black_bytes).unwrap();
         let delay = Delay::from_numer_denom_ms(100, 1);
         let frame = Frame::from_parts(img, 0, 0, delay);
@@ -96,7 +88,7 @@ mod tests {
             encoder.encode_frames(vec![frame].into_iter()).unwrap();
         }
 
-        let json = gif_to_ascii_frames(&gif_bytes, 1);
+        let json = gif_to_ascii_frames(&gif_bytes, 1).unwrap();
 
         let expected = format!(
             r#"[{{"ascii":"{}","delayMs":100}}]"#,
@@ -114,6 +106,9 @@ mod tests {
     fn load_gif_test() {
         let buf = std::fs::read(format!("{TEST_DIR}/dodo.gif")).expect("read error");
         assert_eq!(load_gif(&buf), 14);
+        let frames: serde_json::Value =
+            serde_json::from_str(&gif_to_ascii_frames(&buf, 60).unwrap()).unwrap();
+        assert_eq!(frames.as_array().unwrap().len(), 14);
     }
 
     #[test]
@@ -140,6 +135,82 @@ mod tests {
         let img = GrayImage::from_raw(1, 1, black_bytes).unwrap();
         let result = engine::image_to_string(img.into());
         assert_eq!(result, String::from(ASCII_RAMP.as_bytes()[0] as char));
+    }
+
+    #[test]
+    fn tiny_image_has_at_least_one_row() {
+        let img = DynamicImage::ImageRgb8(RgbImage::from_pixel(1, 1, Rgb([128, 128, 128])));
+        let resized = engine::resize_image(img, 30);
+        assert_eq!((resized.width(), resized.height()), (30, 15));
+
+        let resized = engine::resize_image(DynamicImage::new_rgb8(1, 1), 0);
+        assert_eq!((resized.width(), resized.height()), (1, 1));
+    }
+
+    #[test]
+    fn extreme_aspect_ratios_keep_nonzero_dimensions() {
+        let tall = engine::resize_image(DynamicImage::new_rgb8(100, 1000), 30);
+        assert_eq!((tall.width(), tall.height()), (30, 150));
+
+        let wide = engine::resize_image(DynamicImage::new_rgb8(1000, 100), 30);
+        assert_eq!((wide.width(), wide.height()), (30, 2));
+
+        let very_wide = engine::resize_image(DynamicImage::new_rgb8(1000, 1), 30);
+        assert_eq!((very_wide.width(), very_wide.height()), (30, 1));
+    }
+
+    #[test]
+    fn color_pixels_convert_through_luminance() {
+        let color = RgbImage::from_pixel(1, 1, Rgb([255, 0, 0]));
+        let gray = DynamicImage::ImageRgb8(color.clone()).into_luma8();
+        assert_eq!(
+            engine::image_to_string(color),
+            engine::image_to_string(gray)
+        );
+    }
+
+    #[test]
+    fn invalid_image_and_gif_return_errors() {
+        assert!(image_to_ascii(b"not an image", 30)
+            .unwrap_err()
+            .contains("이미지 파일을 읽을 수 없습니다"));
+        assert!(gif_to_ascii_frames(b"not a GIF", 30)
+            .unwrap_err()
+            .contains("GIF 파일을 읽을 수 없습니다"));
+    }
+
+    #[test]
+    fn converts_gif_with_one_hundred_frames() {
+        use image::codecs::gif::{GifEncoder, Repeat};
+
+        let frames = (0..100).map(|value| {
+            let pixel = value as u8;
+            Frame::from_parts(
+                RgbaImage::from_pixel(1, 1, Rgba([pixel, pixel, pixel, 255])),
+                0,
+                0,
+                Delay::from_numer_denom_ms(20, 1),
+            )
+        });
+        let mut bytes = Vec::new();
+        {
+            let mut encoder = GifEncoder::new(&mut bytes);
+            encoder.set_repeat(Repeat::Infinite).unwrap();
+            encoder.encode_frames(frames).unwrap();
+        }
+
+        let result: serde_json::Value =
+            serde_json::from_str(&gif_to_ascii_frames(&bytes, 30).unwrap()).unwrap();
+        assert_eq!(result.as_array().unwrap().len(), 100);
+    }
+
+    #[test]
+    fn converts_real_large_jpeg() {
+        let bytes = std::fs::read(format!("{TEST_DIR}/{FILE_NAME}")).unwrap();
+        let ascii = image_to_ascii(&bytes, 100).unwrap();
+        let lines: Vec<_> = ascii.lines().collect();
+        assert_eq!(lines.len(), 58);
+        assert!(lines.iter().all(|line| line.chars().count() == 100));
     }
 
     fn load_image() -> DynamicImage {

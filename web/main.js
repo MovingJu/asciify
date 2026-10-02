@@ -20,9 +20,13 @@ const downloadGifBtn = document.getElementById("download-gif-btn");
 let currentAnimation = null; // 재생 중인 GIF 애니메이션의 setTimeout 핸들
 let lastAscii = null; // 지금 화면에 보이는 ASCII 결과 (다운로드 대상, GIF는 현재 프레임 기준)
 let lastFrames = null; // 지금 결과가 GIF일 때 전체 프레임 배열 [{ascii, delayMs}, ...], 아니면 null
+let selectedFile = null;
 
 colsSlider.addEventListener("input", () => {
   colsValue.textContent = colsSlider.value;
+});
+colsSlider.addEventListener("change", () => {
+  if (selectedFile) handleFile(selectedFile);
 });
 
 dropZone.addEventListener("click", () => fileInput.click());
@@ -45,6 +49,7 @@ fileInput.addEventListener("change", () => {
 });
 
 async function handleFile(file) {
+  selectedFile = file;
   if (currentAnimation) {
     clearTimeout(currentAnimation);
     currentAnimation = null;
@@ -64,6 +69,7 @@ async function handleFile(file) {
     if (file.type === "image/gif") {
       const framesJson = gif_to_ascii_frames(bytes, cols);
       const frames = JSON.parse(framesJson); // [{ ascii, delayMs }, ...]
+      if (frames.length === 0) throw new Error("GIF에서 프레임을 찾을 수 없습니다.");
       lastFrames = frames;
       downloadGifBtn.disabled = false;
       playAnimation(frames);
@@ -77,7 +83,8 @@ async function handleFile(file) {
       status.textContent = "완료";
     }
   } catch (err) {
-    status.textContent = `에러: ${err.message ?? err}`;
+    const message = typeof err === "string" ? err : err?.message ?? "알 수 없는 오류";
+    status.textContent = `변환 실패: ${message}`;
     console.error(err);
   }
 }
@@ -85,10 +92,11 @@ async function handleFile(file) {
 function playAnimation(frames) {
   let i = 0;
   function tick() {
-    output.textContent = frames[i].ascii;
-    setDownloadResult(frames[i].ascii); // 다운로드는 항상 "지금 보이는 프레임" 기준
+    const frame = frames[i];
+    output.textContent = frame.ascii;
+    setDownloadResult(frame.ascii); // 다운로드는 항상 "지금 보이는 프레임" 기준
     i = (i + 1) % frames.length;
-    currentAnimation = setTimeout(tick, frames[i === 0 ? frames.length - 1 : i - 1].delayMs || 100);
+    currentAnimation = setTimeout(tick, frame.delayMs || 100);
   }
   tick();
 }

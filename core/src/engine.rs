@@ -29,9 +29,14 @@ where
     result_ascii
 }
 pub(crate) fn resize_image(img: DynamicImage, cols: u32) -> DynamicImage {
+    let cols = cols.max(1);
     let rows = {
         let correlation_factor = 0.5;
-        cols as f64 * (img.height() as f64 / img.width() as f64) * correlation_factor
+        (cols as f64
+            * (img.height().max(1) as f64 / img.width().max(1) as f64)
+            * correlation_factor)
+            .round()
+            .max(1.0) as u32
     };
-    img.resize_exact(cols, rows.round() as u32, imageops::FilterType::Triangle)
+    img.resize_exact(cols, rows, imageops::FilterType::Triangle)
 }
